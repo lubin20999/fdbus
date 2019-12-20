@@ -4,11 +4,13 @@ project(fdbus C CXX)
 option(fdbus_BUILD_TESTS "Build tests" ON)
 option(fdbus_ENABLE_LOG "Enable log" ON)
 option(fdbus_LOG_TO_STDOUT "Log to stdout" OFF)
-option(fdbus_ENABLE_MESSAGE_METADATA "Enable metadata of message" ON)
+option(fdbus_ENABLE_MESSAGE_METADATA "Enable metadata of message" OFF)
 option(fdbus_SOCKET_ENABLE_PEERCRED "Enable peercred of socket" ON)
 option(fdbus_ALLOC_PORT_BY_SYSTEM "Allocate port number by system rather than by name server" OFF)
 option(fdbus_SECURITY "Enable security of FDBus" OFF)
 option(fdbus_ANDROID "build Android version" OFF)
+option(fdbus_PIPE_AS_EVENTFD "Do not use event FD" OFF)
+option(fdbus_BUILD_JNI "Build jni" OFF)
 
 if (MSVC)
     add_definitions("-D__WIN32__")
@@ -43,6 +45,9 @@ endif()
 if (fdbus_SECURITY)
     add_definitions("-DCFG_FDBUS_SECURITY")
 endif()
+if (fdbus_PIPE_AS_EVENTFD)
+    add_definitions("-DCFG_PIPE_AS_EVENTFD")
+endif()
 
 set(RULE_DIR ${CMAKE_SOURCE_DIR})
 get_filename_component(PROJECT_ROOT ${RULE_DIR} PATH)
@@ -55,6 +60,15 @@ if (MSVC)
     file(GLOB PLATFORM_SOURCES "${PROJECT_ROOT}/platform/win/*.cpp")
 else()
     file(GLOB PLATFORM_SOURCES "${PROJECT_ROOT}/platform/linux/*.cpp")
+endif()
+if (MSVC)
+    set(EVENTFD_SOURCES "${PROJECT_ROOT}/platform/CEventFd_pipe.cpp")
+else()
+    if (fdbus_PIPE_AS_EVENTFD)
+        set(EVENTFD_SOURCES "${PROJECT_ROOT}/platform/CEventFd_pipe.cpp")
+    else()
+        set(EVENTFD_SOURCES "${PROJECT_ROOT}/platform/CEventFd_eventfd.cpp")
+    endif()
 endif()
 file(GLOB_RECURSE SOCKET_SOURCES "${PROJECT_ROOT}/platform/socket/*.cpp")
 file(GLOB UTILS_SOURCES "${PROJECT_ROOT}/utils/*.cpp")
@@ -81,7 +95,7 @@ include(idl-gen.cmake)
 include_directories(
     ${PROJECT_ROOT}
     ${PROJECT_ROOT}/public
-    "${IDL_GEN_ROOT}"
+    ${IDL_GEN_ROOT}
     )
 
 if (MSVC)
@@ -103,6 +117,7 @@ endif()
 add_library(common_base ${LIB_BUILD_TYPE}
                           ${FDBUS_SOURCES}
                           ${PLATFORM_SOURCES}
+                          ${EVENTFD_SOURCES}
                           ${SOCKET_SOURCES}
                           ${UTILS_SOURCES}
                           ${WORKER_SOURCES}
@@ -111,6 +126,7 @@ add_library(common_base ${LIB_BUILD_TYPE}
 )
 install(TARGETS common_base DESTINATION usr/lib)
 install(DIRECTORY ${PROJECT_ROOT}/public/common_base/ DESTINATION usr/include/common_base)
+install(DIRECTORY ${IDL_GEN_ROOT}/idl-gen/ DESTINATION usr/include/idl-gen)
 
 link_libraries(common_base)
 
@@ -119,12 +135,19 @@ if (fdbus_BUILD_TESTS)
     include(example.cmake)
 endif()
 
+if (fdbus_BUILD_JNI)
+    include(jni.cmake)
+endif()
+
 #set( CMAKE_VERBOSE_MAKEFILE on )
 
 print_variable(fdbus_BUILD_TESTS)
+print_variable(fdbus_ENABLE_LOG)
 print_variable(fdbus_LOG_TO_STDOUT)
 print_variable(fdbus_ENABLE_MESSAGE_METADATA)
-print_variable(fdbus_SOCKET_BLOCKING_CONNECT)
 print_variable(fdbus_SOCKET_ENABLE_PEERCRED)
 print_variable(fdbus_ALLOC_PORT_BY_SYSTEM)
+print_variable(fdbus_SECURITY)
 print_variable(fdbus_ANDROID)
+print_variable(fdbus_PIPE_AS_EVENTFD)
+print_variable(fdbus_BUILD_JNI)
